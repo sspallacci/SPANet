@@ -92,6 +92,12 @@ class JetReconstructionValidation(JetReconstructionNetwork):
     def compute_losses(self, jet_predictions, particle_scores, targets, regression_targets, classification_targets):
         '''Compute and log the validation losses.'''
 
+        # Cast arrays to torch tensors if they are not already.
+        if type(jet_predictions[0]) is not torch.Tensor:
+            jet_predictions = [torch.from_numpy(x).to("cuda") for x in jet_predictions]
+        if type(particle_scores[0]) is not torch.Tensor:
+            particle_scores = [torch.from_numpy(x).to("cuda") for x in particle_scores]
+
         symmetric_losses, best_indices = self.symmetric_losses(
             jet_predictions,
             particle_scores,
