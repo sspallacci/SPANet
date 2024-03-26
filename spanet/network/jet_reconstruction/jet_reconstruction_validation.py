@@ -89,7 +89,7 @@ class JetReconstructionValidation(JetReconstructionNetwork):
         metrics["validation_accuracy"] = metrics[f"jet/accuracy_{num_targets}_of_{num_targets}"]
         return metrics
 
-    def compute_losses(self, outputs, batch):
+    def compute_validation_losses(self, outputs, batch):
         '''Compute and log the validation losses.'''
 
         symmetric_losses, best_indices = self.symmetric_losses(
@@ -159,7 +159,7 @@ class JetReconstructionValidation(JetReconstructionNetwork):
     def validation_step(self, batch, batch_idx) -> Dict[str, np.float32]:
         # Run the base prediction step
         sources, num_jets, targets, regression_targets, classification_targets = batch
-        (jet_predictions, particle_scores, regressions, classifications), outputs = self.predict(sources, validation=True)
+        (jet_predictions, particle_scores, regressions, classifications), outputs = self.predict(sources)
 
         batch_size = num_jets.shape[0]
         num_targets = len(targets)
@@ -215,7 +215,7 @@ class JetReconstructionValidation(JetReconstructionNetwork):
             if not np.isnan(value):
                 self.log(name, value, sync_dist=True)
 
-        self.compute_losses(outputs, batch)
+        self.compute_validation_losses(outputs, batch)
 
         return metrics
 
