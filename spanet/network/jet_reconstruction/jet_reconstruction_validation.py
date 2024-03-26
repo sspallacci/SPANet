@@ -89,19 +89,13 @@ class JetReconstructionValidation(JetReconstructionNetwork):
         metrics["validation_accuracy"] = metrics[f"jet/accuracy_{num_targets}_of_{num_targets}"]
         return metrics
 
-    def compute_losses(self, jet_predictions, particle_scores, targets, regression_targets, classification_targets):
+    def compute_losses(self, outputs, batch):
         '''Compute and log the validation losses.'''
 
-        # Cast arrays to torch tensors if they are not already.
-        if type(jet_predictions[0]) is not torch.Tensor:
-            jet_predictions = [torch.from_numpy(x).to("cuda") for x in jet_predictions]
-        if type(particle_scores[0]) is not torch.Tensor:
-            particle_scores = [torch.from_numpy(x).to("cuda") for x in particle_scores]
-
         symmetric_losses, best_indices = self.symmetric_losses(
-            jet_predictions,
-            particle_scores,
-            targets
+            outputs.assignments,
+            outputs.detections,
+            batch.assignment_targets
         )
 
         # Construct the newly permuted masks based on the minimal permutation found during NLL loss.
@@ -148,13 +142,13 @@ class JetReconstructionValidation(JetReconstructionNetwork):
             total_loss.append(detection_loss)
 
         if self.options.kl_loss_scale > 0:
-            total_loss = self.add_kl_loss(total_loss, jet_predictions, masks, weights)
+            total_loss = self.add_kl_loss(total_loss, outputs.assignments, masks, weights)
 
         if self.options.regression_loss_scale > 0:
-            total_loss = self.add_regression_loss(total_loss, regressions, regression_targets)
+            total_loss = self.add_regression_loss(total_loss, outputs.regressions, batch.regression_targets)
 
         if self.options.classification_loss_scale > 0:
-            total_loss = self.add_classification_loss(total_loss, classifications, classification_targets)
+            total_loss = self.add_classification_loss(total_loss, outputs.classifications, batch.classification_targets)
 
         total_loss = torch.cat([loss.view(-1) for loss in total_loss])
 
@@ -165,7 +159,7 @@ class JetReconstructionValidation(JetReconstructionNetwork):
     def validation_step(self, batch, batch_idx) -> Dict[str, np.float32]:
         # Run the base prediction step
         sources, num_jets, targets, regression_targets, classification_targets = batch
-        jet_predictions, particle_scores, regressions, classifications = self.predict(sources)
+        (jet_predictions, particle_scores, regressions, classifications), outputs = self.predict(sources, validation=True)
 
         batch_size = num_jets.shape[0]
         num_targets = len(targets)
@@ -221,13 +215,7 @@ class JetReconstructionValidation(JetReconstructionNetwork):
             if not np.isnan(value):
                 self.log(name, value, sync_dist=True)
 
-        self.compute_losses(
-            jet_predictions,
-            particle_scores,
-            targets,
-            regression_targets,
-            classification_targets
-        )
+        self.compute_losses(outputs, batch)
 
         return metrics
 

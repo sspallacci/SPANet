@@ -118,7 +118,7 @@ class JetReconstructionNetwork(JetReconstructionBase):
             classifications
         )
 
-    def predict(self, sources: Tuple[Source, ...]) -> Predictions:
+    def predict(self, sources: Tuple[Source, ...], validation=False) -> Predictions:
         with torch.no_grad():
             outputs = self.forward(sources)
 
@@ -145,12 +145,22 @@ class JetReconstructionNetwork(JetReconstructionBase):
                 for key, value in outputs.classifications.items()
             }
 
-        return Predictions(
-            assignments,
-            detections,
-            regressions,
-            classifications
-        )
+        # If self.predict is called from the validation loop, return the Predictions (Numpy arrays) and Outputs (Tensors)
+        # This is needed in order to use the tensors to compute losses and metrics.
+        if validation:
+            return Predictions(
+                assignments,
+                detections,
+                regressions,
+                classifications
+            ), Outputs(*outputs)
+        else:
+            return Predictions(
+                assignments,
+                detections,
+                regressions,
+                classifications
+            )
 
     def predict_assignments(self, sources: Tuple[Source, ...]) -> np.ndarray:
         # Run the base prediction step
