@@ -1,4 +1,5 @@
 from typing import Tuple, Dict, List
+import inspect
 
 import numpy as np
 import torch
@@ -134,7 +135,13 @@ class JetReconstructionTraining(JetReconstructionNetwork):
         kl_loss = (weights * kl_loss).sum() / masks.sum()
 
         with torch.no_grad():
-            self.log("loss/symmetric_loss", kl_loss, sync_dist=True)
+            caller_function = inspect.currentframe().f_back.f_code.co_name
+            if caller_function == "training_step":
+                self.log("loss/symmetric_loss", kl_loss, sync_dist=True)
+            elif caller_function == "compute_validation_losses":
+                self.log("validation_loss/symmetric_loss", kl_loss, sync_dist=True)
+            else:
+                raise ValueError(f"Unknown caller function: {caller_function}")
             if torch.isnan(kl_loss):
                 raise ValueError("Symmetric KL Loss has diverged.")
 
@@ -167,7 +174,13 @@ class JetReconstructionTraining(JetReconstructionNetwork):
             current_loss = torch.mean(current_loss)
 
             with torch.no_grad():
-                self.log(f"loss/regression/{key}", current_loss, sync_dist=True)
+                caller_function = inspect.currentframe().f_back.f_code.co_name
+                if caller_function == "training_step":
+                    self.log(f"loss/regression/{key}", current_loss, sync_dist=True)
+                elif caller_function == "compute_validation_losses":
+                    self.log(f"validation_loss/regression/{key}", current_loss, sync_dist=True)
+                else:
+                    raise ValueError(f"Unknown caller function: {caller_function}")
 
             regression_terms.append(self.options.regression_loss_scale * current_loss)
 
@@ -196,7 +209,13 @@ class JetReconstructionTraining(JetReconstructionNetwork):
             classification_terms.append(self.options.classification_loss_scale * current_loss)
 
             with torch.no_grad():
-                self.log(f"loss/classification/{key}", current_loss, sync_dist=True)
+                caller_function = inspect.currentframe().f_back.f_code.co_name
+                if caller_function == "training_step":
+                    self.log(f"loss/classification/{key}", current_loss, sync_dist=True)
+                elif caller_function == "compute_validation_losses":
+                    self.log(f"validation_loss/classification/{key}", current_loss, sync_dist=True)
+                else:
+                    raise ValueError(f"Unknown caller function: {caller_function}")
 
         return total_loss + classification_terms
 
