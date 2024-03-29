@@ -11,6 +11,7 @@ from spanet.dataset.jet_reconstruction_dataset import JetReconstructionDataset
 from spanet.network.learning_rate_schedules import get_linear_schedule_with_warmup
 from spanet.network.learning_rate_schedules import get_cosine_with_hard_restarts_schedule_with_warmup
 
+import mdmm
 
 class JetReconstructionBase(pl.LightningModule):
     def __init__(self, options: Options):
@@ -166,6 +167,32 @@ class JetReconstructionBase(pl.LightningModule):
                 "weight_decay": 0.0,
             },
         ]
+
+        if self.options.mdmm_loss_scale > 0:
+            if self.options.assignment_loss_scale <= 0:
+                raise ValueError("MDMM loss requires assignment loss to be enabled.")
+            if self.options.classification_loss_scale <= 0:
+                raise ValueError("MDMM loss requires classification loss to be enabled.")
+
+            # Define MDMM constraints
+            constraint_assignment = mdmm.MaxConstraint(
+                self.get_assignment_loss,
+                max=self.options.mdmm_jet_assignment_max, # to be tuned based on the jet assignment loss
+                scale=self.options.mdmm_jet_assignment_scale,
+                damping=self.options.mdmm_jet_assignment_damping,
+            )
+            constraints = [constraint_assignment]
+
+            # Define MDMM module with constraints
+            self.mdmm_module = mdmm.MDMM(constraints)
+            lambdas = [c.lmbda for c in self.mdmm_module]
+            slacks = [c.slack for c in self.mdmm_module if hasattr(c, 'slack')]
+
+            # Update optimizer parameters with MDMM parameters
+            optimizer_grouped_parameters += [
+                {'params': lambdas, 'lr': -self.options.learning_rate},
+                {'params': slacks, 'lr': self.options.learning_rate}
+            ]
 
         optimizer = optimizer(optimizer_grouped_parameters, lr=self.options.learning_rate)
 

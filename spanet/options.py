@@ -253,6 +253,12 @@ class Options(Namespace):
         # Total number of GPUs to use.
         self.num_gpu: int = 1
 
+        # MDMM parameters
+        self.mdmm_loss_scale: float = 0.0
+        self.mdmm_jet_assignment_max: float = 0.5
+        self.mdmm_jet_assignment_scale: float = 1.0
+        self.mdmm_jet_assignment_damping: float = 1.0
+
         # =========================================================================================
         # Miscellaneous Options
         # =========================================================================================

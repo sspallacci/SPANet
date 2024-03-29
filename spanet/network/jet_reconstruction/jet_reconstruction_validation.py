@@ -142,13 +142,13 @@ class JetReconstructionValidation(JetReconstructionNetwork):
             total_loss.append(detection_loss)
 
         if self.options.kl_loss_scale > 0:
-            total_loss = self.add_kl_loss(total_loss, outputs.assignments, masks, weights)
+            total_loss += self.get_kl_loss(outputs.assignments, masks, weights)
 
         if self.options.regression_loss_scale > 0:
-            total_loss = self.add_regression_loss(total_loss, outputs.regressions, batch.regression_targets)
+            total_loss += self.get_regression_loss(outputs.regressions, batch.regression_targets)
 
         if self.options.classification_loss_scale > 0:
-            total_loss = self.add_classification_loss(total_loss, outputs.classifications, batch.classification_targets)
+            total_loss += self.get_classification_loss(outputs.classifications, batch.classification_targets)
 
         total_loss = torch.cat([loss.view(-1) for loss in total_loss])
 
