@@ -181,7 +181,17 @@ class JetReconstructionBase(pl.LightningModule):
                 scale=self.options.mdmm_jet_assignment_scale,
                 damping=self.options.mdmm_jet_assignment_damping,
             )
+
             constraints = [constraint_assignment]
+
+            if self.options.detection_loss_scale > 0:
+                constraint_detection = mdmm.MaxConstraint(
+                    self.get_detection_loss,
+                    max=self.options.mdmm_detection_max, # to be tuned based on the jet detection loss
+                    scale=self.options.mdmm_detection_scale,
+                    damping=self.options.mdmm_detection_damping,
+                )
+                constraints.append(constraint_detection)
 
             # Define MDMM module with constraints
             self.mdmm_module = mdmm.MDMM(constraints)

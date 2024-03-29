@@ -221,7 +221,7 @@ class JetReconstructionTraining(JetReconstructionNetwork):
         return assignment_loss.sum()
 
     def get_detection_loss(self, detection_loss):
-        return detection_loss
+        return detection_loss.sum()
 
     def training_step(self, batch: Batch, batch_nb: int) -> Dict[str, Tensor]:
         # ===================================================================================================
@@ -311,10 +311,14 @@ class JetReconstructionTraining(JetReconstructionNetwork):
 
             total_loss_before_mdmm = torch.cat([loss.view(-1) for loss in total_loss]).mean()
 
+            # Arguments to pass to the loss functions in the MDMM module
+            args_mdmm = [(assignment_loss)]
+            if self.options.detection_loss_scale > 0:
+                args_mdmm.append((detection_loss))
+
             mdmm_return = self.mdmm_module(
                 total_loss_before_mdmm,
-                # arguments for self.get_assignment_loss
-                [(assignment_loss)]
+                args_mdmm
             )
             total_loss_after_mdmm = mdmm_return.value
             total_loss.append(assignment_loss)
