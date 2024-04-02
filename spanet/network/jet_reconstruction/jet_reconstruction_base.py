@@ -37,11 +37,18 @@ class JetReconstructionBase(pl.LightningModule):
             self.jet_weights_tensor = torch.nn.Parameter(jet_weights_tensor, requires_grad=False)
             self.balance_jets = True
 
+        # Compute event weights
+        self.balance_events = options.balance_events
+        if self.balance_events:
+            event_weights = self.training_dataset.event_weights
+        else:
+            event_weights = None
+
         self.balance_classifications = options.balance_classifications
         if self.balance_classifications:
             classification_weights = {
                 key: torch.nn.Parameter(value, requires_grad=False)
-                for key, value in self.training_dataset.compute_classification_balance().items()
+                for key, value in self.training_dataset.compute_classification_balance(event_weights).items()
             }
 
             self.classification_weights = torch.nn.ParameterDict(classification_weights)
@@ -181,7 +188,17 @@ class JetReconstructionBase(pl.LightningModule):
                 scale=self.options.mdmm_jet_assignment_scale,
                 damping=self.options.mdmm_jet_assignment_damping,
             )
+
             constraints = [constraint_assignment]
+
+            if self.options.detection_loss_scale > 0:
+                constraint_detection = mdmm.MaxConstraint(
+                    self.get_detection_loss,
+                    max=self.options.mdmm_detection_max, # to be tuned based on the jet detection loss
+                    scale=self.options.mdmm_detection_scale,
+                    damping=self.options.mdmm_detection_damping,
+                )
+                constraints.append(constraint_detection)
 
             # Define MDMM module with constraints
             self.mdmm_module = mdmm.MDMM(constraints)
