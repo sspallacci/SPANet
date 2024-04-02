@@ -7,7 +7,7 @@ from torch import Tensor
 from torch.nn import functional as F
 
 from spanet.options import Options
-from spanet.dataset.types import Batch, Source, AssignmentTargets
+from spanet.dataset.types import SpecialKey, Batch, Source, AssignmentTargets
 from spanet.dataset.regressions import regression_loss
 from spanet.network.jet_reconstruction.jet_reconstruction_network import JetReconstructionNetwork
 from spanet.network.utilities.divergence_losses import assignment_cross_entropy_loss, jensen_shannon_divergence
@@ -188,7 +188,8 @@ class JetReconstructionTraining(JetReconstructionNetwork):
     def get_classification_loss(
             self,
             predictions: Dict[str, Tensor],
-            targets: Dict[str, Tensor]
+            targets: Dict[str, Tensor],
+            event_weights: Tensor = None,
     ) -> List[Tensor]:
         classification_terms = []
 
@@ -197,12 +198,24 @@ class JetReconstructionTraining(JetReconstructionNetwork):
             current_target = targets[key]
 
             weight = None if not self.balance_classifications else self.classification_weights[key]
-            current_loss = F.cross_entropy(
-                current_prediction,
-                current_target,
-                ignore_index=-1,
-                weight=weight
-            )
+            if self.balance_events:
+                assert event_weights is not None, "Event weights are required for balancing classifications."
+                current_loss = F.cross_entropy(
+                    current_prediction,
+                    current_target,
+                    ignore_index=-1,
+                    weight=weight,
+                    reduction='none'
+                )
+                # Compute the weighted average of the loss
+                current_loss = sum(current_loss * event_weights / sum(event_weights))
+            else:
+                current_loss = F.cross_entropy(
+                    current_prediction,
+                    current_target,
+                    ignore_index=-1,
+                    weight=weight
+                )
 
             classification_terms.append(self.options.classification_loss_scale * current_loss)
 
@@ -221,7 +234,7 @@ class JetReconstructionTraining(JetReconstructionNetwork):
         return assignment_loss.sum()
 
     def get_detection_loss(self, detection_loss):
-        return detection_loss
+        return detection_loss.sum()
 
     def training_step(self, batch: Batch, batch_nb: int) -> Dict[str, Tensor]:
         # ===================================================================================================
@@ -300,7 +313,7 @@ class JetReconstructionTraining(JetReconstructionNetwork):
             total_loss += regression_loss
 
         if self.options.classification_loss_scale > 0:
-            classification_loss = self.get_classification_loss(outputs.classifications, batch.classification_targets)
+            classification_loss = self.get_classification_loss(outputs.classifications, batch.classification_targets, batch.event_weights)
             total_loss += classification_loss
 
         if self.options.mdmm_loss_scale > 0:
@@ -311,10 +324,14 @@ class JetReconstructionTraining(JetReconstructionNetwork):
 
             total_loss_before_mdmm = torch.cat([loss.view(-1) for loss in total_loss]).mean()
 
+            # Arguments to pass to the loss functions in the MDMM module
+            args_mdmm = [(assignment_loss)]
+            if self.options.detection_loss_scale > 0:
+                args_mdmm.append((detection_loss))
+
             mdmm_return = self.mdmm_module(
                 total_loss_before_mdmm,
-                # arguments for self.get_assignment_loss
-                [(assignment_loss)]
+                args_mdmm
             )
             total_loss_after_mdmm = mdmm_return.value
             total_loss.append(assignment_loss)

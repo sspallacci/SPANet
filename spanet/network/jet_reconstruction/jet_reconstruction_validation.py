@@ -148,7 +148,7 @@ class JetReconstructionValidation(JetReconstructionNetwork):
             total_loss += self.get_regression_loss(outputs.regressions, batch.regression_targets)
 
         if self.options.classification_loss_scale > 0:
-            total_loss += self.get_classification_loss(outputs.classifications, batch.classification_targets)
+            total_loss += self.get_classification_loss(outputs.classifications, batch.classification_targets, batch.event_weights)
 
         total_loss = torch.cat([loss.view(-1) for loss in total_loss])
 
@@ -158,7 +158,7 @@ class JetReconstructionValidation(JetReconstructionNetwork):
 
     def validation_step(self, batch, batch_idx) -> Dict[str, np.float32]:
         # Run the base prediction step
-        sources, num_jets, targets, regression_targets, classification_targets = batch
+        sources, num_jets, targets, regression_targets, classification_targets, event_weights = batch
         (jet_predictions, particle_scores, regressions, classifications), outputs = self.predict(sources)
 
         batch_size = num_jets.shape[0]
