@@ -405,8 +405,6 @@ class JetReconstructionDataset(Dataset):
             if event_weights == None:
                 beta = 1 - (1 / targets.shape[0])
                 vector_class_weights = (1 - beta) / (1 - (beta ** torch.bincount(targets)))
-                vector_class_weights[torch.isinf(vector_class_weights)] = 0
-                vector_class_weights = vector_class_weights.shape[0] * vector_class_weights / vector_class_weights.sum()
             else:
                 sumw_bkg, sumw_sig = torch.bincount(targets, weights=event_weights)
                 n_bkg = sum(targets != 1)
@@ -414,7 +412,9 @@ class JetReconstructionDataset(Dataset):
                 norm_sig = n_bkg / sumw_sig
                 index_class = torch.unique(targets)
                 vector_class_weights = torch.where(index_class == 1, norm_sig, norm_bkg)
-                vector_class_weights[torch.isinf(vector_class_weights)] = 0
+
+            vector_class_weights[torch.isinf(vector_class_weights)] = 0
+            vector_class_weights = vector_class_weights.shape[0] * vector_class_weights / vector_class_weights.sum()
 
             return vector_class_weights
 
