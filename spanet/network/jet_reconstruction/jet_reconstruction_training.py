@@ -208,7 +208,7 @@ class JetReconstructionTraining(JetReconstructionNetwork):
                     reduction='none'
                 )
                 # Compute the weighted average of the loss
-                current_loss = sum(current_loss * event_weights) / sum(event_weights)
+                current_loss = sum(current_loss * event_weights)
             else:
                 current_loss = F.cross_entropy(
                     current_prediction,
