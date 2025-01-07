@@ -415,7 +415,7 @@ class JetReconstructionDataset(Dataset):
                 n_bkg = sum(targets != 1)
                 norm_bkg = n_bkg / sumw_bkg
                 norm_sig = n_bkg / sumw_sig
-                index_class = torch.unique(targets)
+                index_class = torch.arange(bin_counts.shape[0])
                 vector_class_weights = torch.where(index_class == 1, norm_sig, norm_bkg)
                 vector_class_weights[torch.isinf(vector_class_weights)] = 0
 
