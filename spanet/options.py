@@ -253,6 +253,12 @@ class Options(Namespace):
         # Number of epochs to train for.
         self.epochs: int = 100
         
+        # Quantity to monitory for early stopping.
+        self.checkpoint_metric: str = "validation_accuracy"
+        self.checkpoint_save_top_k: int = 3
+        self.checkpoint_mode: str = "max"
+
+
         # Total number of GPUs to use.
         self.num_gpu: int = 1
 

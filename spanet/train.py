@@ -141,9 +141,9 @@ def main(
     callbacks = [
         ModelCheckpoint(
             verbose=options.verbose_output,
-            monitor='validation_accuracy',
-            save_top_k=25,
-            mode='max',
+            monitor=options.checkpoint_metric,
+            save_top_k=options.checkpoint_save_top_k,
+            mode=options.checkpoint_mode,
             save_last=True
         ),
         LearningRateMonitor(),
