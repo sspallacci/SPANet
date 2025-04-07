@@ -30,7 +30,8 @@ TBatch = Tuple[
     Tensor,
     Tuple[Tuple[Tensor, Tensor], ...],
     Dict[str, Tensor],
-    Dict[str, Tensor]
+    Dict[str, Tensor],
+    Tensor
 ]
 
 
@@ -110,7 +111,15 @@ class JetReconstructionDataset(Dataset):
             # Load various types of targets.
             self.assignments = self.load_assignments(file, limit_index)
             self.regressions, self.regression_types = self.load_regressions(file, limit_index)
+            #print(self.load_classifications(file, limit_index))
+            #breakpoint()
             self.classifications = self.load_classifications(file, limit_index)
+            #self.targets_type
+            self.num_targets = len(np.unique(next(iter(self.load_classifications(file, limit_index).values()))))
+            
+
+            # Load the weights for the dataset.
+            self.event_weights = self.load_event_weights(file, limit_index)
 
             # Update size information after loading and limiting dataset.
             self.num_events = limit_index.shape[0]
@@ -131,6 +140,9 @@ class JetReconstructionDataset(Dataset):
     def dataset(hdf5_file: h5py.File, group: List[str], key: str) -> h5py.Dataset:
         group_string = "/".join(group)
         key_string = "/".join(group + [key])
+        '''print(group)
+        print(key)
+        breakpoint()'''
         if key in hdf5_file[group_string]:
             return hdf5_file[key_string]
         else:
@@ -260,8 +272,12 @@ class JetReconstructionDataset(Dataset):
         def add_target(key, value):
             targets[key] = value
 
+        #print(self.event_info.classifications[SpecialKey.Event])
+
         for target in self.event_info.classifications[SpecialKey.Event]:
             add_target(*tree_key_data([SpecialKey.Event], target))
+
+        #print(self.event_info.product_particles)
 
         for particle in self.event_info.product_particles:
             for target in self.event_info.classifications[particle][SpecialKey.Particle]:
@@ -270,8 +286,15 @@ class JetReconstructionDataset(Dataset):
             for daughter in self.event_info.product_particles[particle]:
                 for target in self.event_info.classifications[particle][daughter]:
                     add_target(*tree_key_data([particle, daughter], target))
-
+        
+        #breakpoint()
         return targets
+
+    def load_event_weights(self, hdf5_file: h5py.File, limit_index: np.ndarray) -> Dict[str, Tensor]:
+
+        data = hdf5_file[SpecialKey.Weights]["weight"]
+
+        return torch.from_numpy(data[:][limit_index])
 
     def compute_source_statistics(
             self,
@@ -390,17 +413,32 @@ class JetReconstructionDataset(Dataset):
 
         return vector_class_weights
 
-    def compute_classification_balance(self):
-        def compute_effective_counts(targets):
-            beta = 1 - (1 / targets.shape[0])
-            vector_class_weights = (1 - beta) / (1 - (beta ** torch.bincount(targets)))
-            vector_class_weights[torch.isinf(vector_class_weights)] = 0
-            vector_class_weights = vector_class_weights.shape[0] * vector_class_weights / vector_class_weights.sum()
-
+    def compute_classification_balance(self, event_weights: Optional[Tensor] = None):
+        def compute_effective_counts(targets, event_weights=None):
+            if event_weights == None:
+                beta = 1 - (1 / targets.shape[0])
+                vector_class_weights = (1 - beta) / (1 - (beta ** torch.bincount(targets)))
+                vector_class_weights[torch.isinf(vector_class_weights)] = 0
+                vector_class_weights = vector_class_weights.shape[0] * vector_class_weights / vector_class_weights.sum()
+                
+            else:
+                print(targets)
+                print(event_weights)
+                print(np.unique(targets))
+                n_targets = len(np.unique(targets))
+                n_tot_sample = len(event_weights)
+                print(f'n_tot_sample = {n_tot_sample}')
+                new_total_sample = n_tot_sample/n_targets
+                print(f'new tot= {new_total_sample}')
+                bin_counts = torch.bincount(targets, weights=event_weights)[1:]
+                print(f'bin count= {bin_counts}')
+                vector_class_weights = new_total_sample / bin_counts
+                vector_class_weights[torch.isinf(vector_class_weights)] = 0
+            print(vector_class_weights)
             return vector_class_weights
 
         return OrderedDict((
-            (key, compute_effective_counts(value))
+            (key, compute_effective_counts(value, self.event_weights))
             for key, value in self.classifications.items()
             if value is not None
         ))
@@ -470,5 +508,6 @@ class JetReconstructionDataset(Dataset):
             self.num_vectors[item],
             assignments,
             regressions,
-            classifications
+            classifications,
+            self.event_weights[item]
         )
