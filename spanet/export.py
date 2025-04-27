@@ -171,6 +171,7 @@ if __name__ == '__main__':
     parser.add_argument("output_file", type=str,
                         help="Name to output the ONNX model to.")
 
+
     parser.add_argument("-g", "--gpu", action="store_true",
                         help="Trace the network on a gpu.")
 
