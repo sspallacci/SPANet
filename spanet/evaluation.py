@@ -60,7 +60,7 @@ def select_best_checkpoint(base_folder_path, metric_name, mode='min'):
         raise FileNotFoundError(f"Folder {folder_path} does not exist!")
 
     safe_metric = re.escape(metric_filename)
-    pattern = re.compile(rf'{safe_metric}=([0-9.]+)(?:-v(\d+))?\.ckpt')
+    pattern = re.compile(rf'{safe_metric}=(-?[0-9.]+)(?:-v(\d+))?\.ckpt')
 
     files = os.listdir(folder_path)
 
